@@ -1,5 +1,5 @@
 const client = mqtt.connect(
-    "ws://broker.emqx.io:8083/mqtt"
+    "wss://broker.emqx.io:8084/mqtt"
 );
 
 client.on("connect", function ()
@@ -14,6 +14,8 @@ client.on("message", function (topic, message)
 {
     const value = message.toString();
 
+    console.log(topic + " -> " + value);
+
     if (topic === "molino/rpm")
     {
         document.getElementById("rpm").innerText = value;
@@ -23,4 +25,10 @@ client.on("message", function (topic, message)
     {
         document.getElementById("flow").innerText = value;
     }
+});
+
+client.on("error", function (err)
+{
+    console.log("ERROR MQTT");
+    console.log(err);
 });
