@@ -94,7 +94,7 @@
 
   .metrics-row {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: 16px;
     margin-bottom: 24px;
   }
@@ -123,9 +123,8 @@
     border-radius: 16px 16px 0 0;
   }
 
-  .metric-card.rpm    { --accent: #38bdf8; }
-  .metric-card.period { --accent: #a78bfa; }
-  .metric-card.flow   { --accent: #34d399; }
+  .metric-card.rpm  { --accent: #38bdf8; }
+  .metric-card.flow { --accent: #34d399; }
 
   .metric-label {
     font-size: 11px;
@@ -312,18 +311,6 @@
       </div>
     </div>
 
-    <div class="metric-card period">
-      <div class="metric-label">
-        <div class="metric-icon">⏱️</div>
-        Periodo entre eventos
-      </div>
-      <div class="metric-value" id="period">—</div>
-      <span class="metric-unit" style="color:#a78bfa">µs</span>
-      <div class="metric-sub">
-        <span>Timer ISR · Interrupción</span>
-      </div>
-    </div>
-
     <div class="metric-card flow">
       <div class="metric-label">
         <div class="metric-icon">💧</div>
@@ -376,17 +363,16 @@
     </div>
   </div>
 
-  <footer>ESP32-S3 · broker.emqx.io · molino/rpm · molino/caudal · molino/periodo</footer>
+  <footer>ESP32-S3 · broker.emqx.io · molino/rpm · molino/caudal</footer>
 
 </div>
 
 <script>
   /* ── Configuración ──────────────────────────────────────── */
-  const BROKER_URL  = "wss://broker.emqx.io:8084/mqtt";
-  const TOPIC_RPM    = "molino/rpm";
-  const TOPIC_PERIOD = "molino/periodo";
-  const TOPIC_FLOW   = "molino/caudal";
-  const MAX_POINTS   = 40;   // puntos máximos en la gráfica
+  const BROKER_URL = "wss://broker.emqx.io:8084/mqtt";
+  const TOPIC_RPM  = "molino/rpm";
+  const TOPIC_FLOW = "molino/caudal";
+  const MAX_POINTS = 40;
 
   /* ── Estado ─────────────────────────────────────────────── */
   const rpmHistory  = [];
@@ -504,7 +490,6 @@
     document.getElementById('connLabel').textContent = 'Conectado · EMQX';
 
     client.subscribe(TOPIC_RPM);
-    client.subscribe(TOPIC_PERIOD);
     client.subscribe(TOPIC_FLOW);
   });
 
@@ -527,12 +512,6 @@
         rpmMax = val;
         document.getElementById('rpmMax').textContent = Math.round(val);
       }
-    }
-
-    /* Periodo */
-    if (topic === TOPIC_PERIOD) {
-      document.getElementById('period').textContent = isNaN(val) ? raw : Math.round(val);
-      flashEl('period');
     }
 
     /* Caudal */
