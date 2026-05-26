@@ -1,261 +1,565 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Molino IoT Dashboard</title>
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
-    <title>Molino IoT Dashboard</title>
+  body {
+    background: #060d1a;
+    color: #e2e8f0;
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    padding: 32px;
+    overflow-x: hidden;
+  }
 
-    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  .bg-grid {
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(56,189,248,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(56,189,248,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
 
-    <style>
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    max-width: 1300px;
+    margin: 0 auto;
+  }
 
-        *
-        {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+  header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 40px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
 
-        body
-        {
-            background: linear-gradient(
-                135deg,
-                #0f172a,
-                #1e293b
-            );
+  .header-left h1 {
+    font-family: 'Space Mono', monospace;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: #f8fafc;
+  }
 
-            color: white;
+  .header-left h1 span { color: #38bdf8; }
 
-            font-family: Arial, Helvetica, sans-serif;
+  .header-left p {
+    font-size: 13px;
+    color: #64748b;
+    margin-top: 4px;
+    font-weight: 400;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
 
-            min-height: 100vh;
+  .conn-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 100px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-family: 'Space Mono', monospace;
+    color: #64748b;
+  }
 
-            display: flex;
-            justify-content: center;
-            align-items: center;
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #ef4444;
+    transition: background 0.3s;
+  }
+  .dot.live { background: #22c55e; animation: pulse 2s infinite; }
 
-            padding: 40px;
-        }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
 
-        .dashboard
-        {
-            width: 100%;
-            max-width: 1200px;
-        }
+  .metrics-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
 
-        .title
-        {
-            text-align: center;
-            margin-bottom: 40px;
-        }
+  .metric-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s, transform 0.2s;
+  }
 
-        .title h1
-        {
-            font-size: 48px;
-            margin-bottom: 10px;
-        }
+  .metric-card:hover {
+    border-color: rgba(56,189,248,0.3);
+    transform: translateY(-2px);
+  }
 
-        .title p
-        {
-            color: #94a3b8;
-            font-size: 18px;
-        }
+  .metric-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent);
+    border-radius: 16px 16px 0 0;
+  }
 
-        .grid
-        {
-            display: grid;
+  .metric-card.rpm    { --accent: #38bdf8; }
+  .metric-card.period { --accent: #a78bfa; }
+  .metric-card.flow   { --accent: #34d399; }
 
-            grid-template-columns:
-                repeat(auto-fit, minmax(300px, 1fr));
+  .metric-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #64748b;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
 
-            gap: 25px;
-        }
+  .metric-icon {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.06);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+  }
 
-        .card
-        {
-            background: rgba(255,255,255,0.05);
+  .metric-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 48px;
+    font-weight: 700;
+    line-height: 1;
+    color: #f8fafc;
+    transition: color 0.3s;
+  }
 
-            border: 1px solid rgba(255,255,255,0.1);
+  .metric-unit {
+    font-family: 'Space Mono', monospace;
+    font-size: 14px;
+    color: var(--accent);
+    margin-top: 4px;
+    display: block;
+  }
 
-            border-radius: 20px;
+  .metric-sub {
+    margin-top: 16px;
+    font-size: 12px;
+    color: #475569;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
 
-            padding: 30px;
+  .trend {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 100px;
+    background: rgba(34,197,94,0.12);
+    color: #4ade80;
+    font-weight: 600;
+  }
 
-            backdrop-filter: blur(10px);
+  .charts-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
 
-            transition: 0.3s;
-        }
+  .chart-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 24px;
+  }
 
-        .card:hover
-        {
-            transform: translateY(-5px);
+  .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
 
-            border-color: #38bdf8;
-        }
+  .chart-title {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: #94a3b8;
+    text-transform: uppercase;
+  }
 
-        .card-title
-        {
-            font-size: 20px;
-            color: #cbd5e1;
+  .chart-badge {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 100px;
+    font-family: 'Space Mono', monospace;
+  }
 
-            margin-bottom: 20px;
-        }
+  .chart-badge.blue  { background: rgba(56,189,248,0.1);  color: #38bdf8; }
+  .chart-badge.green { background: rgba(52,211,153,0.1); color: #34d399; }
 
-        .value
-        {
-            font-size: 60px;
-            font-weight: bold;
-        }
+  canvas { width: 100% !important; }
 
-        .unit
-        {
-            color: #38bdf8;
-            font-size: 20px;
-        }
+  .bottom-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+  }
 
-        .status
-        {
-            margin-top: 20px;
+  .stat-mini {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+    padding: 16px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
 
-            display: inline-block;
+  .stat-mini-label {
+    font-size: 12px;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
 
-            padding: 8px 15px;
+  .stat-mini-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 18px;
+    color: #94a3b8;
+  }
 
-            border-radius: 50px;
+  footer {
+    margin-top: 24px;
+    text-align: center;
+    font-size: 11px;
+    font-family: 'Space Mono', monospace;
+    color: #334155;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
 
-            background: #22c55e;
+  .flash { animation: flashAnim 0.4s ease; }
 
-            color: white;
+  @keyframes flashAnim {
+    0%   { color: #38bdf8; }
+    100% { color: #f8fafc; }
+  }
 
-            font-size: 14px;
-        }
-
-        .footer
-        {
-            margin-top: 40px;
-
-            text-align: center;
-
-            color: #94a3b8;
-        }
-
-    </style>
+  @media (max-width: 900px) {
+    .metrics-row  { grid-template-columns: 1fr; }
+    .charts-row   { grid-template-columns: 1fr; }
+    .bottom-row   { grid-template-columns: 1fr; }
+    body          { padding: 16px; }
+    .metric-value { font-size: 36px; }
+  }
+</style>
 </head>
-
 <body>
 
-<div class="dashboard">
+<div class="bg-grid"></div>
 
-    <div class="title">
-        <h1>🌊 Molino IoT</h1>
-        <p>Monitorización en tiempo real mediante ESP32 + MQTT</p>
+<div class="wrapper">
+
+  <!-- CABECERA -->
+  <header>
+    <div class="header-left">
+      <h1>🌊 Molino <span>IoT</span></h1>
+      <p>ESP32-S3 · FreeRTOS · MQTT · Tiempo Real</p>
+    </div>
+    <div class="conn-badge">
+      <div class="dot" id="connDot"></div>
+      <span id="connLabel">Conectando...</span>
+    </div>
+  </header>
+
+  <!-- MÉTRICAS PRINCIPALES -->
+  <div class="metrics-row">
+
+    <div class="metric-card rpm">
+      <div class="metric-label">
+        <div class="metric-icon">⚙️</div>
+        RPM del molino
+      </div>
+      <div class="metric-value" id="rpm">—</div>
+      <span class="metric-unit">RPM</span>
+      <div class="metric-sub">
+        <span>Velocidad angular</span>
+        <span class="trend">LIVE</span>
+      </div>
     </div>
 
-    <div class="grid">
-
-        <div class="card">
-
-            <div class="card-title">
-                RPM DEL MOLINO
-            </div>
-
-            <div class="value">
-                <span id="rpm">0</span>
-                <span class="unit">RPM</span>
-            </div>
-
-            <div class="status">
-                Tiempo real
-            </div>
-
-        </div>
-
-        <div class="card">
-
-            <div class="card-title">
-                PERIODO ENTRE EVENTOS
-            </div>
-
-            <div class="value">
-                <span id="period">0</span>
-                <span class="unit">us</span>
-            </div>
-
-            <div class="status">
-                Timer ISR
-            </div>
-
-        </div>
-
-        <div class="card">
-
-            <div class="card-title">
-                CAUDAL ESTIMADO
-            </div>
-
-            <div class="value">
-                <span id="flow">0</span>
-                <span class="unit">L/min</span>
-            </div>
-
-            <div class="status">
-                Calculado
-            </div>
-
-        </div>
-
+    <div class="metric-card period">
+      <div class="metric-label">
+        <div class="metric-icon">⏱️</div>
+        Periodo entre eventos
+      </div>
+      <div class="metric-value" id="period">—</div>
+      <span class="metric-unit" style="color:#a78bfa">µs</span>
+      <div class="metric-sub">
+        <span>Timer ISR · Interrupción</span>
+      </div>
     </div>
 
-    <div class="footer">
-        ESP32-S3 · FreeRTOS · MQTT · GitHub Pages
+    <div class="metric-card flow">
+      <div class="metric-label">
+        <div class="metric-icon">💧</div>
+        Caudal estimado
+      </div>
+      <div class="metric-value" id="flow">—</div>
+      <span class="metric-unit" style="color:#34d399">L/min</span>
+      <div class="metric-sub">
+        <span>Calculado en tiempo real</span>
+        <span class="trend">LIVE</span>
+      </div>
     </div>
+
+  </div>
+
+  <!-- GRÁFICAS -->
+  <div class="charts-row">
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <span class="chart-title">RPM · Histórico</span>
+        <span class="chart-badge blue" id="rpmLast">— RPM</span>
+      </div>
+      <canvas id="rpmChart" height="160"></canvas>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <span class="chart-title">Caudal · Histórico</span>
+        <span class="chart-badge green" id="flowLast">— L/min</span>
+      </div>
+      <canvas id="flowChart" height="160"></canvas>
+    </div>
+
+  </div>
+
+  <!-- ESTADÍSTICAS -->
+  <div class="bottom-row">
+    <div class="stat-mini">
+      <div class="stat-mini-label">RPM máximo</div>
+      <div class="stat-mini-value" id="rpmMax">—</div>
+    </div>
+    <div class="stat-mini">
+      <div class="stat-mini-label">Caudal máximo</div>
+      <div class="stat-mini-value" id="flowMax">—</div>
+    </div>
+    <div class="stat-mini">
+      <div class="stat-mini-label">Mensajes recibidos</div>
+      <div class="stat-mini-value" id="msgCount">0</div>
+    </div>
+  </div>
+
+  <footer>ESP32-S3 · broker.emqx.io · molino/rpm · molino/caudal · molino/periodo</footer>
 
 </div>
 
 <script>
+  /* ── Configuración ──────────────────────────────────────── */
+  const BROKER_URL  = "wss://broker.emqx.io:8084/mqtt";
+  const TOPIC_RPM    = "molino/rpm";
+  const TOPIC_PERIOD = "molino/periodo";
+  const TOPIC_FLOW   = "molino/caudal";
+  const MAX_POINTS   = 40;   // puntos máximos en la gráfica
 
-const client = mqtt.connect(
-    "wss://broker.emqx.io:8084/mqtt"
-);
+  /* ── Estado ─────────────────────────────────────────────── */
+  const rpmHistory  = [];
+  const flowHistory = [];
+  let msgCount = 0;
+  let rpmMax   = null;
+  let flowMax  = null;
 
-client.on("connect", function ()
-{
-    console.log("MQTT conectado");
+  /* ── Helpers ────────────────────────────────────────────── */
+  function nowLabel() {
+    const d = new Date();
+    return d.getHours().toString().padStart(2,'0') + ':' +
+           d.getMinutes().toString().padStart(2,'0') + ':' +
+           d.getSeconds().toString().padStart(2,'0');
+  }
 
-    client.subscribe("molino/rpm");
-    client.subscribe("molino/periodo");
-    client.subscribe("molino/caudal");
-});
+  function flashEl(id) {
+    const el = document.getElementById(id);
+    el.classList.remove('flash');
+    void el.offsetWidth;   // forzar reflow para reiniciar animación
+    el.classList.add('flash');
+  }
 
-client.on("message", function (topic, message)
-{
-    const value = message.toString();
+  /* ── Configuración base de Chart.js ─────────────────────── */
+  const chartDefaults = {
+    responsive: true,
+    animation: { duration: 300 },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: 'rgba(6,13,26,0.9)',
+        borderColor: 'rgba(255,255,255,0.1)',
+        borderWidth: 1,
+        titleColor: '#94a3b8',
+        bodyColor: '#f8fafc',
+        padding: 10,
+        titleFont: { family: 'Space Mono' },
+        bodyFont:  { family: 'Space Mono', size: 13 }
+      }
+    },
+    scales: {
+      x: {
+        ticks: { color: '#334155', font: { family: 'Space Mono', size: 10 }, maxTicksLimit: 6 },
+        grid:  { color: 'rgba(255,255,255,0.04)' },
+        border:{ color: 'rgba(255,255,255,0.06)' }
+      },
+      y: {
+        ticks: { color: '#334155', font: { family: 'Space Mono', size: 10 } },
+        grid:  { color: 'rgba(255,255,255,0.04)' },
+        border:{ color: 'rgba(255,255,255,0.06)' }
+      }
+    }
+  };
 
-    console.log(topic + ": " + value);
+  /* ── Gráfica RPM ────────────────────────────────────────── */
+  const rpmChart = new Chart(
+    document.getElementById('rpmChart').getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          data: [],
+          borderColor: '#38bdf8',
+          backgroundColor: 'rgba(56,189,248,0.08)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 2,
+          pointBackgroundColor: '#38bdf8'
+        }]
+      },
+      options: { ...chartDefaults }
+    }
+  );
 
-    if (topic === "molino/rpm")
-    {
-        document.getElementById("rpm").innerText = value;
+  /* ── Gráfica Caudal ─────────────────────────────────────── */
+  const flowChart = new Chart(
+    document.getElementById('flowChart').getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          data: [],
+          borderColor: '#34d399',
+          backgroundColor: 'rgba(52,211,153,0.08)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 2,
+          pointBackgroundColor: '#34d399'
+        }]
+      },
+      options: { ...chartDefaults }
+    }
+  );
+
+  /* ── Función para añadir puntos a una gráfica ───────────── */
+  function pushToChart(chart, history, value) {
+    history.push(value);
+    if (history.length > MAX_POINTS) history.shift();
+
+    // Etiquetas: solo mostrar cada 5 puntos para no saturar el eje X
+    chart.data.labels = history.map((_, i) =>
+      i % 5 === 0 ? nowLabel() : ''
+    );
+    chart.data.datasets[0].data = [...history];
+    chart.update('none');
+  }
+
+  /* ── Conexión MQTT ──────────────────────────────────────── */
+  const client = mqtt.connect(BROKER_URL);
+
+  client.on("connect", function () {
+    document.getElementById('connDot').classList.add('live');
+    document.getElementById('connLabel').textContent = 'Conectado · EMQX';
+
+    client.subscribe(TOPIC_RPM);
+    client.subscribe(TOPIC_PERIOD);
+    client.subscribe(TOPIC_FLOW);
+  });
+
+  client.on("message", function (topic, message) {
+    const raw = message.toString();
+    const val = parseFloat(raw);
+
+    msgCount++;
+    document.getElementById('msgCount').textContent = msgCount;
+
+    /* RPM */
+    if (topic === TOPIC_RPM) {
+      const display = isNaN(val) ? raw : Math.round(val);
+      document.getElementById('rpm').textContent     = display;
+      document.getElementById('rpmLast').textContent = display + ' RPM';
+      flashEl('rpm');
+      pushToChart(rpmChart, rpmHistory, isNaN(val) ? 0 : val);
+
+      if (rpmMax === null || val > rpmMax) {
+        rpmMax = val;
+        document.getElementById('rpmMax').textContent = Math.round(val);
+      }
     }
 
-    if (topic === "molino/periodo")
-    {
-        document.getElementById("period").innerText = value;
+    /* Periodo */
+    if (topic === TOPIC_PERIOD) {
+      document.getElementById('period').textContent = isNaN(val) ? raw : Math.round(val);
+      flashEl('period');
     }
 
-    if (topic === "molino/caudal")
-    {
-        document.getElementById("flow").innerText = value;
+    /* Caudal */
+    if (topic === TOPIC_FLOW) {
+      const display = isNaN(val) ? raw : val.toFixed(2);
+      document.getElementById('flow').textContent     = display;
+      document.getElementById('flowLast').textContent = display + ' L/min';
+      flashEl('flow');
+      pushToChart(flowChart, flowHistory, isNaN(val) ? 0 : val);
+
+      if (flowMax === null || val > flowMax) {
+        flowMax = val;
+        document.getElementById('flowMax').textContent = val.toFixed(2);
+      }
     }
-});
+  });
 
-client.on("error", function (err)
-{
-    console.log(err);
-});
+  client.on("error", function (err) {
+    document.getElementById('connDot').classList.remove('live');
+    document.getElementById('connLabel').textContent = 'Error de conexión';
+    console.error("MQTT error:", err);
+  });
 
+  client.on("close", function () {
+    document.getElementById('connDot').classList.remove('live');
+    document.getElementById('connLabel').textContent = 'Desconectado';
+  });
 </script>
 
 </body>
