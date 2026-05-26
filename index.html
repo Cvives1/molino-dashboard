@@ -330,7 +330,7 @@
         Caudal estimado
       </div>
       <div class="metric-value" id="flow">—</div>
-      <span class="metric-unit" style="color:#34d399">L/min</span>
+      <span class="metric-unit" style="color:#34d399">mL/min</span>
       <div class="metric-sub">
         <span>Calculado en tiempo real</span>
         <span class="trend">LIVE</span>
@@ -353,7 +353,7 @@
     <div class="chart-card">
       <div class="chart-header">
         <span class="chart-title">Caudal · Histórico</span>
-        <span class="chart-badge green" id="flowLast">— L/min</span>
+        <span class="chart-badge green" id="flowLast">— mL/min</span>
       </div>
       <canvas id="flowChart" height="160"></canvas>
     </div>
@@ -539,7 +539,7 @@
     if (topic === TOPIC_FLOW) {
       const display = isNaN(val) ? raw : val.toFixed(2);
       document.getElementById('flow').textContent     = display;
-      document.getElementById('flowLast').textContent = display + ' L/min';
+      document.getElementById('flowLast').textContent = display + ' mL/min';
       flashEl('flow');
       pushToChart(flowChart, flowHistory, isNaN(val) ? 0 : val);
 
